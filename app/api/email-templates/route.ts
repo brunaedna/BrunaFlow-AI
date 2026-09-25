@@ -1,6 +1,8 @@
-import { desc, eq, and, sql } from "drizzle-orm";
+import { desc, eq, and, gte, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { automations, emailTemplates } from "../../../db/schema";
+import { automations, deliveryAttempts, emailTemplates, gmailConnections, sentEmails } from "../../../db/schema";
+import { sendTestEmail } from "../../../lib/gmail";
+import { decryptToken } from "../../../lib/google-oauth";
 import { generateEmailTemplate } from "../../../lib/lead-ai";
 import { getVisitorSession, hashSession, visitorCookie } from "../../../lib/session";
 
@@ -12,6 +14,8 @@ const defaultTemplate={
 
 function clean(value:unknown,max:number){return String(value??"").trim().slice(0,max)}
 function errorMessage(error:unknown){const message=error instanceof Error?error.message:"Erro inesperado";return message.includes("no such table")?"Banco ainda não preparado. Aplique a nova migração do projeto.":message}
+function render(value:string,variables:Record<string,string>){return value.replace(/\{\{\s*(nome|email|mensagem|classificacao|prioridade|nome_automacao)\s*\}\}/gi,(_,key:string)=>variables[key.toLowerCase()]||"")}
+async function hash(value:string){const bytes=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(value));return Array.from(new Uint8Array(bytes)).map(byte=>byte.toString(16).padStart(2,"0")).join("")}
 
 export async function GET(request:Request){
   const session=getVisitorSession(request);const headers=new Headers();if(session.isNew)headers.append("Set-Cookie",visitorCookie(session.id,request));
@@ -25,14 +29,22 @@ export async function GET(request:Request){
 export async function POST(request:Request){
   const session=getVisitorSession(request);const headers=new Headers();if(session.isNew)headers.append("Set-Cookie",visitorCookie(session.id,request));
   try{
-    const ownerHash=await hashSession(session.id);const payload=await request.json() as Record<string,unknown>;
+    const ownerHash=await hashSession(session.id);const payload=await request.json() as Record<string,unknown>;const db=getDb();
+    if(payload.kind==="test"){
+      const email=clean(payload.email,320).toLowerCase();const contactName=clean(payload.contactName,100)||"Maria";const subject=clean(payload.subject,180);const body=clean(payload.body,5000);const automationName=clean(payload.name,120)||"Modelo de teste";
+      if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return Response.json({error:"Informe um e-mail destinatário válido."},{status:400,headers});
+      if(!subject||!body)return Response.json({error:"Preencha assunto e mensagem antes de testar."},{status:400,headers});
+      const [connection]=await db.select().from(gmailConnections).where(eq(gmailConnections.sessionHash,ownerHash)).limit(1);if(!connection)return Response.json({error:"Conecte seu Gmail antes de enviar um teste."},{status:400,headers});
+      const emailHash=await hash(email);const ipHash=await hash(request.headers.get("CF-Connecting-IP")||"unknown");const [recentEmail]=await db.select({count:sql<number>`count(*)`}).from(deliveryAttempts).where(and(eq(deliveryAttempts.emailHash,emailHash),gte(deliveryAttempts.createdAt,sql`datetime('now','-10 minutes')`)));if(Number(recentEmail?.count||0)>0)return Response.json({error:"Este e-mail já recebeu um teste recentemente. Aguarde 10 minutos."},{status:429,headers});const [recentIp]=await db.select({count:sql<number>`count(*)`}).from(deliveryAttempts).where(and(eq(deliveryAttempts.ipHash,ipHash),gte(deliveryAttempts.createdAt,sql`datetime('now','-1 hour')`)));if(Number(recentIp?.count||0)>=5)return Response.json({error:"Limite de testes atingido nesta conexão. Tente novamente mais tarde."},{status:429,headers});
+      const variables={nome:contactName,email,mensagem:"Este é um envio de teste do editor de modelos.",classificacao:"Novo contato",prioridade:"Normal",nome_automacao:automationName};const renderedSubject=render(subject,variables);const renderedBody=render(body,variables);const result=await sendTestEmail(email,renderedSubject,renderedBody,{refreshToken:await decryptToken(connection.encryptedRefreshToken),email:connection.email});if(!result.sent)return Response.json({error:"Não foi possível enviar pela conta conectada."},{status:400,headers});let templateId:null|number=null;const requestedTemplate=Number(payload.id);if(requestedTemplate){const [owned]=await db.select({id:emailTemplates.id}).from(emailTemplates).where(and(eq(emailTemplates.id,requestedTemplate),eq(emailTemplates.ownerHash,ownerHash))).limit(1);templateId=owned?.id||null}await db.batch([db.insert(deliveryAttempts).values({emailHash,ipHash}),db.insert(sentEmails).values({ownerHash,templateId,recipientEmail:email,recipientName:contactName,subject:renderedSubject,body:renderedBody,status:"sent",senderEmail:result.sender||connection.email})]);return Response.json({sent:true,sender:result.sender||connection.email,subject:renderedSubject},{headers});
+    }
     if(payload.kind==="generate"){
       const name=clean(payload.name,120)||"E-mail de boas-vindas";const generated=await generateEmailTemplate({name,instructions:clean(payload.instructions,1000)});
       return Response.json(generated,{headers});
     }
     const name=clean(payload.name,120);const subject=clean(payload.subject,180);const body=clean(payload.body,5000);
     if(!name||!subject||!body)return Response.json({error:"Preencha nome, assunto e mensagem."},{status:400,headers});
-    const [template]=await getDb().insert(emailTemplates).values({ownerHash,name,subject,body,aiGenerated:Boolean(payload.aiGenerated)}).returning();
+    const [template]=await db.insert(emailTemplates).values({ownerHash,name,subject,body,aiGenerated:Boolean(payload.aiGenerated)}).returning();
     return Response.json({template},{status:201,headers});
   }catch(error){return Response.json({error:errorMessage(error)},{status:400,headers})}
 }
