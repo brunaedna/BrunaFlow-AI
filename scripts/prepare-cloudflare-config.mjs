@@ -11,6 +11,7 @@ if(!databaseId||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0
 const path=new URL("../dist/server/wrangler.json",import.meta.url);
 const config=JSON.parse(await readFile(path,"utf8"));
 config.name=workerName;
+config.keep_vars=true;
 config.d1_databases=[{binding:"DB",database_name:databaseName,database_id:databaseId}];
 await writeFile(path,`${JSON.stringify(config,null,2)}\n`);
 console.log(`Configuração de produção preparada para ${workerName} e D1 ${databaseName}.`);
