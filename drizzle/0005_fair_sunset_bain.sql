@@ -1,0 +1,1 @@
+DROP INDEX `gmail_connections_session_idx`;

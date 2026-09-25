@@ -1,0 +1,1 @@
+CREATE INDEX `delivery_attempts_ip_created_idx` ON `delivery_attempts` (`ip_hash`,`created_at`);

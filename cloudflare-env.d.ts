@@ -7,5 +7,11 @@ declare namespace Cloudflare {
     GROQ_MODEL?: string;
     GEMINI_MODEL?: string;
     BRUNAFLOW_AI_PROVIDER_ORDER?: string;
+    GOOGLE_CLIENT_ID?: string;
+    GOOGLE_CLIENT_SECRET?: string;
+    GOOGLE_REFRESH_TOKEN?: string;
+    GMAIL_SENDER?: string;
+    BRUNAFLOW_WEBHOOK_SECRET?: string;
+    OAUTH_ENCRYPTION_KEY?: string;
   }
 }
