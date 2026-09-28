@@ -1,4 +1,4 @@
-## BrunaFlow AI
+# BrunaFlow AI
 
 O **BrunaFlow AI** é uma plataforma de automação de processos que conecta formulários e aplicações a fluxos inteligentes de atendimento. A solução recebe eventos por webhook, classifica contatos com inteligência artificial, personaliza mensagens e envia e-mails reais pela conta Gmail conectada pelo usuário.
 
@@ -44,4 +44,33 @@ Histórico e métricas no dashboard
 - **Groq API** e **Google Gemini API**
 - **Lucide React** e componentes baseados em **shadcn/ui**
 
-## Link para acessar o projeto https://brunaflow-ai.brunaflow.workers.dev/
+## Execução local
+
+Requisitos: Node.js `22.13.0` ou superior.
+
+```bash
+npm ci
+```
+
+Copie `.env.example` para `.env.local` e preencha somente as credenciais necessárias. Depois execute:
+
+```bash
+npm run dev
+```
+
+A aplicação será iniciada localmente pelo ambiente Vinext/Vite.
+
+## Variáveis de ambiente
+
+O arquivo `.env.example` documenta as configurações disponíveis para:
+
+- Groq e Gemini;
+- Google OAuth e Gmail;
+- criptografia dos tokens OAuth;
+- autenticação dos webhooks.
+
+Nunca envie arquivos `.env` ou credenciais reais para o repositório.
+
+## Objetivo do projeto
+
+O BrunaFlow AI foi desenvolvido como projeto de portfólio para demonstrar automação empresarial, integração entre serviços, processamento de eventos, persistência de dados, segurança de credenciais e aplicação prática de inteligência artificial.
