@@ -19,7 +19,10 @@ const variables: TemplateVariables = {
 };
 
 test("renderiza variáveis conhecidas sem alterar marcadores desconhecidos", () => {
-  const result = renderTemplate("Olá, {{ nome }}! {{EMAIL}} · {{desconhecida}}", variables);
+  const result = renderTemplate(
+    "Olá, {{ nome }}! {{EMAIL}} · {{desconhecida}}",
+    variables,
+  );
   assert.equal(result, "Olá, Maria! maria@example.com · {{desconhecida}}");
 });
 

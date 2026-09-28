@@ -1,16 +1,25 @@
 import { env } from "cloudflare:workers";
 import { refreshAccessToken } from "./google-oauth";
 
-type GmailIdentity={refreshToken:string;email:string};
+type GmailIdentity = { refreshToken: string; email: string };
 
-export async function sendTestEmail(to:string,subject:string,body:string,identity?:GmailIdentity){
-  const refreshToken=identity?.refreshToken||env.GOOGLE_REFRESH_TOKEN;
-  const sender=identity?.email||env.GMAIL_SENDER;
-  if(!refreshToken||!sender)return{sent:false,reason:"not_connected"};
-  const accessToken=await refreshAccessToken(refreshToken);
-  const safeSender=sender.replace(/[\r\n]/g,"");const safeRecipient=to.replace(/[\r\n]/g,"");const safeSubject=subject.replace(/[\r\n]/g," ");const encodedSubject=`=?UTF-8?B?${toBase64(new TextEncoder().encode(safeSubject))}?=`;
-  const boundary=`brunaflow_${crypto.randomUUID().replace(/-/g,"")}`;const html=buildBrunaFlowEmailHtml(body);
-  const message=[
+export async function sendTestEmail(
+  to: string,
+  subject: string,
+  body: string,
+  identity?: GmailIdentity,
+) {
+  const refreshToken = identity?.refreshToken || env.GOOGLE_REFRESH_TOKEN;
+  const sender = identity?.email || env.GMAIL_SENDER;
+  if (!refreshToken || !sender) return { sent: false, reason: "not_connected" };
+  const accessToken = await refreshAccessToken(refreshToken);
+  const safeSender = sender.replace(/[\r\n]/g, "");
+  const safeRecipient = to.replace(/[\r\n]/g, "");
+  const safeSubject = subject.replace(/[\r\n]/g, " ");
+  const encodedSubject = `=?UTF-8?B?${toBase64(new TextEncoder().encode(safeSubject))}?=`;
+  const boundary = `brunaflow_${crypto.randomUUID().replace(/-/g, "")}`;
+  const html = buildBrunaFlowEmailHtml(body);
+  const message = [
     `From: BrunaFlow AI <${safeSender}>`,
     `To: ${safeRecipient}`,
     `Subject: ${encodedSubject}`,
@@ -29,31 +38,80 @@ export async function sendTestEmail(to:string,subject:string,body:string,identit
     html,
     `--${boundary}--`,
   ].join("\r\n");
-  const raw=base64Url(new TextEncoder().encode(message));
-  const response=await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send",{method:"POST",headers:{Authorization:`Bearer ${accessToken}`,"Content-Type":"application/json"},body:JSON.stringify({raw})});
-  if(!response.ok)throw new Error("O Gmail recusou o envio.");return{sent:true,reason:null,sender};
+  const raw = base64Url(new TextEncoder().encode(message));
+  const response = await fetch(
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ raw }),
+    },
+  );
+  if (!response.ok) throw new Error("O Gmail recusou o envio.");
+  return { sent: true, reason: null, sender };
 }
 
-export async function getGmailOverview(refreshToken:string){
-  const accessToken=await refreshAccessToken(refreshToken);const headers={Authorization:`Bearer ${accessToken}`};
-  const [profileResponse,inboxResponse,sentResponse]=await Promise.all([
-    fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile",{headers}),
-    fetch("https://gmail.googleapis.com/gmail/v1/users/me/labels/INBOX",{headers}),
-    fetch("https://gmail.googleapis.com/gmail/v1/users/me/labels/SENT",{headers}),
+export async function getGmailOverview(refreshToken: string) {
+  const accessToken = await refreshAccessToken(refreshToken);
+  const headers = { Authorization: `Bearer ${accessToken}` };
+  const [profileResponse, inboxResponse, sentResponse] = await Promise.all([
+    fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
+      headers,
+    }),
+    fetch("https://gmail.googleapis.com/gmail/v1/users/me/labels/INBOX", {
+      headers,
+    }),
+    fetch("https://gmail.googleapis.com/gmail/v1/users/me/labels/SENT", {
+      headers,
+    }),
   ]);
-  if(!profileResponse.ok||!inboxResponse.ok||!sentResponse.ok)throw new Error("Não foi possível sincronizar o Gmail.");
-  const profile=await profileResponse.json() as {emailAddress:string;messagesTotal:number;threadsTotal:number};
-  const inbox=await inboxResponse.json() as {messagesTotal?:number;messagesUnread?:number};
-  const sent=await sentResponse.json() as {messagesTotal?:number};
-  return{email:profile.emailAddress,totalMessages:profile.messagesTotal,totalThreads:profile.threadsTotal,inboxMessages:inbox.messagesTotal||0,unreadMessages:inbox.messagesUnread||0,sentMessages:sent.messagesTotal||0};
+  if (!profileResponse.ok || !inboxResponse.ok || !sentResponse.ok)
+    throw new Error("Não foi possível sincronizar o Gmail.");
+  const profile = (await profileResponse.json()) as {
+    emailAddress: string;
+    messagesTotal: number;
+    threadsTotal: number;
+  };
+  const inbox = (await inboxResponse.json()) as {
+    messagesTotal?: number;
+    messagesUnread?: number;
+  };
+  const sent = (await sentResponse.json()) as { messagesTotal?: number };
+  return {
+    email: profile.emailAddress,
+    totalMessages: profile.messagesTotal,
+    totalThreads: profile.threadsTotal,
+    inboxMessages: inbox.messagesTotal || 0,
+    unreadMessages: inbox.messagesUnread || 0,
+    sentMessages: sent.messagesTotal || 0,
+  };
 }
 
-function toBase64(bytes:Uint8Array){let binary="";for(const byte of bytes)binary+=String.fromCharCode(byte);return btoa(binary)}
-function base64Url(bytes:Uint8Array){return toBase64(bytes).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"")}
-function escapeHtml(value:string){return value.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#039;")}
+function toBase64(bytes: Uint8Array) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+function base64Url(bytes: Uint8Array) {
+  return toBase64(bytes)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
-export function buildBrunaFlowEmailHtml(body:string){
-  const content=escapeHtml(body).replace(/\r?\n/g,"<br>");
+export function buildBrunaFlowEmailHtml(body: string) {
+  const content = escapeHtml(body).replace(/\r?\n/g, "<br>");
   return `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#f3f4fb;font-family:Arial,Helvetica,sans-serif;color:#343a4c">

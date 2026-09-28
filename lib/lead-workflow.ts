@@ -1,7 +1,19 @@
 import { and, desc, eq, gte, or, sql } from "drizzle-orm";
 import { getDb } from "../db";
-import { automations, deliveryAttempts, emailTemplates, executions, gmailConnections, sentEmails } from "../db/schema";
-import { isValidEmail, renderTemplate, sha256Hex, type TemplateVariables } from "./automation-utils";
+import {
+  automations,
+  deliveryAttempts,
+  emailTemplates,
+  executions,
+  gmailConnections,
+  sentEmails,
+} from "../db/schema";
+import {
+  isValidEmail,
+  renderTemplate,
+  sha256Hex,
+  type TemplateVariables,
+} from "./automation-utils";
 import { classifyLead } from "./lead-ai";
 import { sendTestEmail } from "./gmail";
 import { decryptToken } from "./google-oauth";
@@ -20,76 +32,158 @@ type Input = {
 export async function executeLeadWorkflow(input: Input) {
   const db = getDb();
   const email = input.contactEmail.trim().toLowerCase();
-  if (!isValidEmail(email)) throw new Error("Informe um e-mail destinatário válido.");
+  if (!isValidEmail(email))
+    throw new Error("Informe um e-mail destinatário válido.");
 
   const emailHash = await sha256Hex(email);
   const ipHash = await sha256Hex(input.ipAddress || "unknown");
   const [recentEmail] = await db
     .select({ count: sql<number>`count(*)` })
     .from(deliveryAttempts)
-    .where(and(eq(deliveryAttempts.emailHash, emailHash), gte(deliveryAttempts.createdAt, sql`datetime('now','-10 minutes')`)));
+    .where(
+      and(
+        eq(deliveryAttempts.emailHash, emailHash),
+        gte(deliveryAttempts.createdAt, sql`datetime('now','-10 minutes')`),
+      ),
+    );
   if (Number(recentEmail?.count || 0) > 0) {
-    throw new Error("Este e-mail já recebeu um teste recentemente. Aguarde 10 minutos.");
+    throw new Error(
+      "Este e-mail já recebeu um teste recentemente. Aguarde 10 minutos.",
+    );
   }
 
   const [recentIp] = await db
     .select({ count: sql<number>`count(*)` })
     .from(deliveryAttempts)
-    .where(and(eq(deliveryAttempts.ipHash, ipHash), gte(deliveryAttempts.createdAt, sql`datetime('now','-1 hour')`)));
+    .where(
+      and(
+        eq(deliveryAttempts.ipHash, ipHash),
+        gte(deliveryAttempts.createdAt, sql`datetime('now','-1 hour')`),
+      ),
+    );
   if (Number(recentIp?.count || 0) >= 5) {
-    throw new Error("Limite de testes atingido nesta conexão. Tente novamente mais tarde.");
+    throw new Error(
+      "Limite de testes atingido nesta conexão. Tente novamente mais tarde.",
+    );
   }
 
   const allowedOwner = input.ownerHash
-    ? or(eq(automations.ownerHash, input.ownerHash), eq(automations.ownerHash, "template"))
+    ? or(
+        eq(automations.ownerHash, input.ownerHash),
+        eq(automations.ownerHash, "template"),
+      )
     : eq(automations.ownerHash, "template");
   const ownerOnly = eq(automations.ownerHash, input.ownerHash || "template");
   let selected;
 
   if (input.automationId) {
-    [selected] = await db.select().from(automations)
-      .where(and(eq(automations.id, input.automationId), allowedOwner)).limit(1);
+    [selected] = await db
+      .select()
+      .from(automations)
+      .where(and(eq(automations.id, input.automationId), allowedOwner))
+      .limit(1);
   } else if (input.automationName) {
-    [selected] = await db.select().from(automations)
-      .where(and(eq(automations.name, input.automationName), ownerOnly, eq(automations.status, "active")))
-      .orderBy(desc(automations.id)).limit(1);
+    [selected] = await db
+      .select()
+      .from(automations)
+      .where(
+        and(
+          eq(automations.name, input.automationName),
+          ownerOnly,
+          eq(automations.status, "active"),
+        ),
+      )
+      .orderBy(desc(automations.id))
+      .limit(1);
     if (!selected) {
-      [selected] = await db.select().from(automations)
-        .where(and(eq(automations.name, input.automationName), eq(automations.ownerHash, "template"), eq(automations.status, "active")))
-        .orderBy(desc(automations.id)).limit(1);
+      [selected] = await db
+        .select()
+        .from(automations)
+        .where(
+          and(
+            eq(automations.name, input.automationName),
+            eq(automations.ownerHash, "template"),
+            eq(automations.status, "active"),
+          ),
+        )
+        .orderBy(desc(automations.id))
+        .limit(1);
     }
   } else if (input.eventType) {
-    [selected] = await db.select().from(automations)
-      .where(and(eq(automations.triggerType, input.eventType), ownerOnly, eq(automations.status, "active")))
-      .orderBy(desc(automations.id)).limit(1);
+    [selected] = await db
+      .select()
+      .from(automations)
+      .where(
+        and(
+          eq(automations.triggerType, input.eventType),
+          ownerOnly,
+          eq(automations.status, "active"),
+        ),
+      )
+      .orderBy(desc(automations.id))
+      .limit(1);
     if (!selected) {
-      [selected] = await db.select().from(automations)
-        .where(and(eq(automations.triggerType, input.eventType), eq(automations.ownerHash, "template"), eq(automations.status, "active")))
-        .orderBy(desc(automations.id)).limit(1);
+      [selected] = await db
+        .select()
+        .from(automations)
+        .where(
+          and(
+            eq(automations.triggerType, input.eventType),
+            eq(automations.ownerHash, "template"),
+            eq(automations.status, "active"),
+          ),
+        )
+        .orderBy(desc(automations.id))
+        .limit(1);
     }
   }
 
   if (!selected && !input.eventType && !input.automationName) {
-    [selected] = await db.select().from(automations).where(allowedOwner).orderBy(desc(automations.id)).limit(1);
+    [selected] = await db
+      .select()
+      .from(automations)
+      .where(allowedOwner)
+      .orderBy(desc(automations.id))
+      .limit(1);
   }
-  if (!selected) throw new Error("Nenhuma automação ativa corresponde a este evento.");
+  if (!selected)
+    throw new Error("Nenhuma automação ativa corresponde a este evento.");
 
   const automationId = selected.id;
   const automationName = selected.name;
   let identity: undefined | { refreshToken: string; email: string };
   if (input.ownerHash) {
-    const [connection] = await db.select().from(gmailConnections)
-      .where(eq(gmailConnections.sessionHash, input.ownerHash)).limit(1);
-    if (!connection) throw new Error("Conecte seu Gmail antes de executar o fluxo.");
-    identity = { refreshToken: await decryptToken(connection.encryptedRefreshToken), email: connection.email };
+    const [connection] = await db
+      .select()
+      .from(gmailConnections)
+      .where(eq(gmailConnections.sessionHash, input.ownerHash))
+      .limit(1);
+    if (!connection)
+      throw new Error("Conecte seu Gmail antes de executar o fluxo.");
+    identity = {
+      refreshToken: await decryptToken(connection.encryptedRefreshToken),
+      email: connection.email,
+    };
   }
 
   const started = Date.now();
-  const result = await classifyLead({ name: input.contactName, message: input.message, automationName });
+  const result = await classifyLead({
+    name: input.contactName,
+    message: input.message,
+    automationName,
+  });
   let template: typeof emailTemplates.$inferSelect | undefined;
   if (selected.templateId && input.ownerHash) {
-    [template] = await db.select().from(emailTemplates)
-      .where(and(eq(emailTemplates.id, selected.templateId), eq(emailTemplates.ownerHash, input.ownerHash))).limit(1);
+    [template] = await db
+      .select()
+      .from(emailTemplates)
+      .where(
+        and(
+          eq(emailTemplates.id, selected.templateId),
+          eq(emailTemplates.ownerHash, input.ownerHash),
+        ),
+      )
+      .limit(1);
   }
 
   const variables: TemplateVariables = {
@@ -100,26 +194,38 @@ export async function executeLeadWorkflow(input: Input) {
     prioridade: result.priority,
     nome_automacao: automationName,
   };
-  const subject = renderTemplate(template?.subject || `BrunaFlow AI: ${result.classification}`, variables);
-  const body = renderTemplate(template?.body || result.emailDraft || "Olá, {{nome}}! Obrigada pelo contato.", variables);
+  const subject = renderTemplate(
+    template?.subject || `BrunaFlow AI: ${result.classification}`,
+    variables,
+  );
+  const body = renderTemplate(
+    template?.body ||
+      result.emailDraft ||
+      "Olá, {{nome}}! Obrigada pelo contato.",
+    variables,
+  );
   const emailResult = await sendTestEmail(email, subject, body, identity);
-  if (!emailResult.sent) throw new Error("Conecte um Gmail para enviar a mensagem.");
+  if (!emailResult.sent)
+    throw new Error("Conecte um Gmail para enviar a mensagem.");
 
   const ownerHash = input.ownerHash || "webhook";
-  const [run] = await db.insert(executions).values({
-    ownerHash,
-    automationId,
-    automationName,
-    contactName: input.contactName.slice(0, 100),
-    classification: result.classification,
-    priority: result.priority,
-    status: "success",
-    attempts: 1,
-    durationMs: Date.now() - started,
-    timeSavedMinutes: 10,
-    provider: result.provider,
-    emailDraft: body,
-  }).returning();
+  const [run] = await db
+    .insert(executions)
+    .values({
+      ownerHash,
+      automationId,
+      automationName,
+      contactName: input.contactName.slice(0, 100),
+      classification: result.classification,
+      priority: result.priority,
+      status: "success",
+      attempts: 1,
+      durationMs: Date.now() - started,
+      timeSavedMinutes: 10,
+      provider: result.provider,
+      emailDraft: body,
+    })
+    .returning();
 
   await db.batch([
     db.insert(deliveryAttempts).values({ emailHash, ipHash }),
@@ -137,5 +243,9 @@ export async function executeLeadWorkflow(input: Input) {
     }),
   ]);
 
-  return { run, analysis: { summary: result.summary, model: result.model }, email: { ...emailResult, subject } };
+  return {
+    run,
+    analysis: { summary: result.summary, model: result.model },
+    email: { ...emailResult, subject },
+  };
 }
