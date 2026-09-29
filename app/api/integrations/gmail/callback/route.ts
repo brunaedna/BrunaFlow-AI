@@ -1,8 +1,11 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../../../../../db";
 import { gmailConnections } from "../../../../../db/schema";
-import { encryptToken, exchangeCode } from "../../../../../lib/google-oauth";
-import { getGmailOverview } from "../../../../../lib/gmail";
+import {
+  encryptToken,
+  exchangeCode,
+  getGoogleIdentity,
+} from "../../../../../lib/google-oauth";
 import {
   getVisitorSession,
   hashSession,
@@ -26,7 +29,7 @@ export async function GET(request: Request) {
     );
     if (!tokens.refresh_token)
       throw new Error("O Google não forneceu acesso permanente.");
-    const overview = await getGmailOverview(tokens.refresh_token);
+    const identity = await getGoogleIdentity(tokens.access_token);
     const sessionHash = await hashSession(session.id);
     const encrypted = await encryptToken(tokens.refresh_token);
     const db = getDb();
@@ -39,7 +42,7 @@ export async function GET(request: Request) {
       await db
         .update(gmailConnections)
         .set({
-          email: overview.email,
+          email: identity.email,
           encryptedRefreshToken: encrypted,
           scopes: tokens.scope || "",
           lastSyncedAt: new Date().toISOString(),
@@ -48,7 +51,7 @@ export async function GET(request: Request) {
     else
       await db.insert(gmailConnections).values({
         sessionHash,
-        email: overview.email,
+        email: identity.email,
         encryptedRefreshToken: encrypted,
         scopes: tokens.scope || "",
         lastSyncedAt: new Date().toISOString(),

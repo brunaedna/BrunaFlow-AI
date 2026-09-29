@@ -1,8 +1,9 @@
 import { env } from "cloudflare:workers";
 
 export const GMAIL_SCOPES = [
+  "openid",
+  "email",
   "https://www.googleapis.com/auth/gmail.send",
-  "https://www.googleapis.com/auth/gmail.metadata",
 ];
 
 export function googleConfig() {
@@ -54,6 +55,21 @@ export async function refreshAccessToken(refreshToken: string) {
   const token = (await response.json()) as { access_token?: string };
   if (!token.access_token) throw new Error("Token do Gmail indisponível.");
   return token.access_token;
+}
+
+export async function getGoogleIdentity(accessToken: string) {
+  const response = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok)
+    throw new Error("Não foi possível identificar a conta Google conectada.");
+  const identity = (await response.json()) as {
+    email?: string;
+    email_verified?: boolean;
+  };
+  if (!identity.email || identity.email_verified === false)
+    throw new Error("A conta Google não possui um e-mail verificado.");
+  return { email: identity.email };
 }
 
 export async function encryptToken(value: string) {

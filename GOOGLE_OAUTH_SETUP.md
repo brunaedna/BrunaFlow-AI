@@ -8,8 +8,9 @@ Cada visitante autoriza a própria conta no Google. O BrunaFlow guarda somente u
 2. Ative a **Gmail API**.
 3. Configure a tela de consentimento OAuth como aplicativo externo.
 4. Adicione os escopos:
+   - `openid`
+   - `email`
    - `https://www.googleapis.com/auth/gmail.send`
-   - `https://www.googleapis.com/auth/gmail.metadata`
 5. Crie um cliente OAuth do tipo **Web application**.
 6. Cadastre as URLs de redirecionamento exatas:
    - Local: `http://127.0.0.1:4175/api/integrations/gmail/callback`
@@ -46,6 +47,6 @@ Aplique todas as migrações da pasta `drizzle` em ordem. As migrações `0004` 
 1. Abra o BrunaFlow em uma janela anônima.
 2. Clique em **Conectar Gmail**.
 3. Confira os escopos na tela oficial do Google e autorize.
-4. Volte ao painel e confirme que os totais da caixa foram sincronizados.
+4. Volte ao painel e confirme que a conta aparece como conectada.
 5. Execute um fluxo e confirme que a mensagem aparece em **Enviados** na conta conectada.
 6. Clique em desconectar e confirme que o painel deixa de acessar a conta.

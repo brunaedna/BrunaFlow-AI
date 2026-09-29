@@ -58,9 +58,6 @@ export type Metrics = {
 export type GmailStatus = {
   connected: boolean;
   email?: string;
-  inboxMessages?: number;
-  unreadMessages?: number;
-  sentMessages?: number;
   lastSyncedAt?: string;
   error?: string;
 };

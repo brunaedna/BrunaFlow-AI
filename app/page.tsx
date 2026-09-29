@@ -629,14 +629,12 @@ export default function Home() {
                 />
                 <Metric
                   icon={<Inbox />}
-                  label="Não lidos no Gmail"
-                  value={
-                    gmail.connected ? String(gmail.unreadMessages || 0) : "—"
-                  }
+                  label="Conta Gmail"
+                  value={gmail.connected ? "Conectada" : "—"}
                   hint={
                     gmail.connected
-                      ? `${gmail.inboxMessages || 0} mensagens na caixa de entrada`
-                      : "Conecte a conta para sincronizar"
+                      ? gmail.email || "Pronta para enviar"
+                      : "Conecte uma conta para enviar"
                   }
                   tone="pink"
                 />
@@ -1351,8 +1349,8 @@ function GmailConnection({
         <h2>{gmail.connected ? gmail.email : "Conecte sua conta Gmail"}</h2>
         <p>
           {gmail.connected
-            ? `Caixa sincronizada: ${gmail.inboxMessages || 0} recebidas, ${gmail.unreadMessages || 0} não lidas e ${gmail.sentMessages || 0} enviadas.`
-            : "Autorize o BrunaFlow a ler métricas e enviar mensagens pela sua conta. Sua senha não é compartilhada."}
+            ? "Conta autorizada para enviar as mensagens das suas automações. O BrunaFlow não lê sua caixa de entrada."
+            : "Autorize o BrunaFlow a enviar mensagens pela sua conta. Sua senha e sua caixa de entrada não são compartilhadas."}
         </p>
       </div>
       <div className="gmail-actions">
@@ -1364,7 +1362,7 @@ function GmailConnection({
               disabled={syncing}
             >
               <RefreshCw size={15} />
-              {syncing ? "Sincronizando" : "Sincronizar"}
+              {syncing ? "Verificando" : "Verificar conexão"}
             </button>
             <button
               className="icon-button"

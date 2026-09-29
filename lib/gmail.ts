@@ -54,42 +54,6 @@ export async function sendTestEmail(
   return { sent: true, reason: null, sender };
 }
 
-export async function getGmailOverview(refreshToken: string) {
-  const accessToken = await refreshAccessToken(refreshToken);
-  const headers = { Authorization: `Bearer ${accessToken}` };
-  const [profileResponse, inboxResponse, sentResponse] = await Promise.all([
-    fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
-      headers,
-    }),
-    fetch("https://gmail.googleapis.com/gmail/v1/users/me/labels/INBOX", {
-      headers,
-    }),
-    fetch("https://gmail.googleapis.com/gmail/v1/users/me/labels/SENT", {
-      headers,
-    }),
-  ]);
-  if (!profileResponse.ok || !inboxResponse.ok || !sentResponse.ok)
-    throw new Error("Não foi possível sincronizar o Gmail.");
-  const profile = (await profileResponse.json()) as {
-    emailAddress: string;
-    messagesTotal: number;
-    threadsTotal: number;
-  };
-  const inbox = (await inboxResponse.json()) as {
-    messagesTotal?: number;
-    messagesUnread?: number;
-  };
-  const sent = (await sentResponse.json()) as { messagesTotal?: number };
-  return {
-    email: profile.emailAddress,
-    totalMessages: profile.messagesTotal,
-    totalThreads: profile.threadsTotal,
-    inboxMessages: inbox.messagesTotal || 0,
-    unreadMessages: inbox.messagesUnread || 0,
-    sentMessages: sent.messagesTotal || 0,
-  };
-}
-
 function toBase64(bytes: Uint8Array) {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);

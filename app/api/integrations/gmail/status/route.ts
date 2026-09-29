@@ -1,8 +1,10 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../../../../../db";
 import { gmailConnections } from "../../../../../db/schema";
-import { decryptToken } from "../../../../../lib/google-oauth";
-import { getGmailOverview } from "../../../../../lib/gmail";
+import {
+  decryptToken,
+  refreshAccessToken,
+} from "../../../../../lib/google-oauth";
 import {
   getVisitorSession,
   hashSession,
@@ -23,15 +25,16 @@ export async function GET(request: Request) {
       .where(eq(gmailConnections.sessionHash, sessionHash))
       .limit(1);
     if (!connection) return Response.json({ connected: false }, { headers });
-    const overview = await getGmailOverview(
+    await refreshAccessToken(
       await decryptToken(connection.encryptedRefreshToken),
     );
+    const lastSyncedAt = new Date().toISOString();
     await db
       .update(gmailConnections)
-      .set({ email: overview.email, lastSyncedAt: new Date().toISOString() })
+      .set({ lastSyncedAt })
       .where(eq(gmailConnections.id, connection.id));
     return Response.json(
-      { connected: true, ...overview, lastSyncedAt: new Date().toISOString() },
+      { connected: true, email: connection.email, lastSyncedAt },
       { headers },
     );
   } catch (error) {

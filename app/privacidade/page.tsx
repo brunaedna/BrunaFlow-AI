@@ -32,10 +32,10 @@ export default function PrivacyPage() {
             Dados acessados
           </h2>
           <p>
-            O aplicativo solicita permissão para enviar mensagens em seu nome e
-            consultar metadados agregados da caixa, como quantidade de mensagens
-            recebidas, não lidas e enviadas. O BrunaFlow não solicita sua senha
-            e não lê o conteúdo da sua caixa de entrada.
+            O aplicativo solicita somente a identificação básica da conta e a
+            permissão necessária para enviar mensagens em seu nome. O BrunaFlow
+            não solicita sua senha e não lê o conteúdo nem os metadados da sua
+            caixa de entrada.
           </p>
         </section>
         <section>
@@ -58,8 +58,9 @@ export default function PrivacyPage() {
             Uso e remoção
           </h2>
           <p>
-            Os dados são usados exclusivamente para exibir métricas e executar
-            os fluxos solicitados pelo visitante. Eles não são vendidos nem
+            Os dados são usados exclusivamente para executar os fluxos
+            solicitados pelo visitante e exibir o histórico gerado dentro do
+            próprio BrunaFlow. Eles não são vendidos nem
             usados para publicidade. “Desconectar Gmail” revoga o acesso e
             remove a credencial OAuth. “Limpar históricos” apaga execuções e
             e-mails enviados. “Excluir workspace” remove também modelos,
