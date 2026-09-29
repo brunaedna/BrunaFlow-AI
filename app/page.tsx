@@ -5,7 +5,6 @@ import {
   Activity,
   ArrowRight,
   Bot,
-  Boxes,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -14,22 +13,17 @@ import {
   Copy,
   Database,
   FileText,
-  GitBranch,
   Inbox,
   KeyRound,
-  LayoutDashboard,
   Link2,
   LogOut,
   Mail,
-  Menu,
   MoreHorizontal,
   Pencil,
   Play,
   Plus,
   RefreshCw,
-  Search,
   Send,
-  Settings,
   ShieldCheck,
   Sparkles,
   Target,
@@ -38,189 +32,39 @@ import {
   X,
   Zap,
 } from "lucide-react";
-
-type Automation = {
-  id: number;
-  name: string;
-  description: string;
-  triggerType: string;
-  actionType: string;
-  templateId?: number | null;
-  status: string;
-  runs: number;
-  successRate: number;
-};
-type Run = {
-  id: number;
-  automationId: number;
-  automationName: string;
-  contactName: string;
-  classification: string;
-  priority: string;
-  status: string;
-  attempts: number;
-  durationMs: number;
-  timeSavedMinutes: number;
-  provider: string;
-  emailDraft: string;
-  createdAt: string;
-};
-type EmailTemplate = {
-  id: number;
-  name: string;
-  subject: string;
-  body: string;
-  aiGenerated: boolean;
-  createdAt: string;
-  updatedAt: string;
-};
-type SentEmail = {
-  id: number;
-  automationId?: number;
-  templateId?: number;
-  recipientEmail: string;
-  recipientName: string;
-  subject: string;
-  body: string;
-  status: string;
-  senderEmail: string;
-  sentAt: string;
-};
-type Metrics = {
-  executions: number;
-  successRate: number;
-  timeSavedMinutes: number;
-};
-type GmailStatus = {
-  connected: boolean;
-  email?: string;
-  inboxMessages?: number;
-  unreadMessages?: number;
-  sentMessages?: number;
-  lastSyncedAt?: string;
-  error?: string;
-};
-type WebhookStatus = {
-  configured: boolean;
-  key?: string;
-  keyPrefix?: string;
-  endpoint?: string;
-  createdAt?: string;
-  lastUsedAt?: string;
-};
-type Tab =
-  | "overview"
-  | "automations"
-  | "runs"
-  | "emails"
-  | "integrations"
-  | "webhooks"
-  | "settings";
-type WebMcpTool = {
-  name: string;
-  title: string;
-  description: string;
-  inputSchema: Record<string, unknown>;
-  annotations: Record<string, boolean>;
-  execute: (input: unknown) => Promise<unknown>;
-};
-
-const starterAutomations: Automation[] = [
-  {
-    id: 1,
-    name: "Boas-vindas para novos usuários",
-    description: "Envia uma mensagem personalizada após cada cadastro",
-    triggerType: "user.created",
-    actionType: "Enviar e-mail pelo Gmail",
-    status: "active",
-    runs: 0,
-    successRate: 0,
-  },
-  {
-    id: 2,
-    name: "Resposta a novo formulário",
-    description: "Responde automaticamente aos contatos recebidos",
-    triggerType: "form.submitted",
-    actionType: "Enviar e-mail pelo Gmail",
-    status: "active",
-    runs: 0,
-    successRate: 0,
-  },
-  {
-    id: 3,
-    name: "Contato de novo lead",
-    description: "Analisa e responde novos leads recebidos pelo webhook",
-    triggerType: "lead.created",
-    actionType: "Enviar e-mail pelo Gmail",
-    status: "paused",
-    runs: 0,
-    successRate: 0,
-  },
-];
-const statusLabel: Record<string, string> = {
-  success: "Concluído",
-  retry: "Nova tentativa",
-  active: "Ativa",
-  paused: "Pausada",
-};
-const pageMeta: Record<
+import { brunaFlowApi } from "@/lib/brunaflow/client";
+import { Sidebar, Topbar } from "@/components/brunaflow/app-navigation";
+import {
+  EMPTY_METRICS,
+  PAGE_META,
+  STARTER_AUTOMATIONS,
+  STATUS_LABEL,
+} from "@/lib/brunaflow/constants";
+import {
+  buildSearchResults,
+  providerLabel,
+  relativeTime,
+  renderTemplatePreview,
+  triggerLabel,
+} from "@/lib/brunaflow/presentation";
+import type {
+  Automation,
+  EmailTemplate,
+  GmailStatus,
+  Run,
+  SentEmail,
   Tab,
-  { eyebrow: string; title: string; description: string }
-> = {
-  overview: {
-    eyebrow: "CENTRAL DE OPERAÇÕES",
-    title: "Sua central de automações",
-    description:
-      "Métricas calculadas somente a partir das suas execuções e da conta conectada.",
-  },
-  automations: {
-    eyebrow: "FLUXOS",
-    title: "Suas automações",
-    description:
-      "Crie, teste e gerencie processos inteligentes em um só lugar.",
-  },
-  runs: {
-    eyebrow: "MONITORAMENTO",
-    title: "Histórico de execuções",
-    description: "Monitore cada etapa, tentativa e resultado dos seus fluxos.",
-  },
-  emails: {
-    eyebrow: "COMUNICAÇÃO",
-    title: "E-mails",
-    description:
-      "Crie mensagens reutilizáveis e acompanhe os envios realizados pelo BrunaFlow.",
-  },
-  integrations: {
-    eyebrow: "CONEXÕES",
-    title: "Integrações",
-    description:
-      "Conecte os serviços que enviam e processam as suas automações.",
-  },
-  webhooks: {
-    eyebrow: "ENTRADA DE EVENTOS",
-    title: "Webhooks",
-    description:
-      "Receba eventos reais do seu site, formulário, aplicativo ou CRM.",
-  },
-  settings: {
-    eyebrow: "WORKSPACE",
-    title: "Configurações",
-    description:
-      "Gerencie privacidade, histórico e dados vinculados a este navegador.",
-  },
-};
+  WebhookStatus,
+  WebMcpTool,
+} from "@/lib/brunaflow/types";
 
 export default function Home() {
   const [automations, setAutomations] =
-    useState<Automation[]>(starterAutomations);
+    useState<Automation[]>(STARTER_AUTOMATIONS);
   const [runs, setRuns] = useState<Run[]>([]);
   const [emails, setEmails] = useState<SentEmail[]>([]);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
-  const [metrics, setMetrics] = useState<Metrics>({
-    executions: 0,
-    successRate: 0,
-    timeSavedMinutes: 0,
-  });
+  const [metrics, setMetrics] = useState(EMPTY_METRICS);
   const [gmail, setGmail] = useState<GmailStatus>({ connected: false });
   const [webhook, setWebhook] = useState<WebhookStatus>({ configured: false });
   const [tab, setTab] = useState<Tab>("overview");
@@ -268,32 +112,28 @@ export default function Home() {
 
   const loadData = useCallback(async () => {
     try {
-      const dashboardResponse = await fetch("/api/dashboard");
-      if (dashboardResponse.ok) {
-        const data = await dashboardResponse.json();
-        setAutomations(data.automations || []);
-        setRuns(data.runs || []);
-        setEmails(data.emails || []);
-        if (data.metrics) setMetrics(data.metrics);
-      }
-      const templatesResponse = await fetch("/api/email-templates");
-      if (templatesResponse.ok) {
-        const data = await templatesResponse.json();
-        const loadedTemplates: EmailTemplate[] = data.templates || [];
-        setTemplates(loadedTemplates);
-        setForm((current) =>
-          current.templateId || !loadedTemplates.length
-            ? current
-            : { ...current, templateId: String(loadedTemplates[0].id) },
-        );
-      }
+      const [dashboard, templateData] = await Promise.all([
+        brunaFlowApi.dashboard(),
+        brunaFlowApi.templates(),
+      ]);
+      setAutomations(dashboard.automations || []);
+      setRuns(dashboard.runs || []);
+      setEmails(dashboard.emails || []);
+      if (dashboard.metrics) setMetrics(dashboard.metrics);
+
+      const loadedTemplates = templateData.templates || [];
+      setTemplates(loadedTemplates);
+      setForm((current) =>
+        current.templateId || !loadedTemplates.length
+          ? current
+          : { ...current, templateId: String(loadedTemplates[0].id) },
+      );
     } catch {}
   }, []);
   const loadGmail = useCallback(async (showFeedback = false) => {
     setSyncing(true);
     try {
-      const response = await fetch("/api/integrations/gmail/status");
-      const data = await response.json();
+      const data = await brunaFlowApi.gmailStatus();
       setGmail(data);
       if (showFeedback)
         setNotice(
@@ -310,8 +150,7 @@ export default function Home() {
   }, []);
   const loadWebhook = useCallback(async () => {
     try {
-      const response = await fetch("/api/webhooks/config");
-      if (response.ok) setWebhook(await response.json());
+      setWebhook(await brunaFlowApi.webhookStatus());
     } catch {}
   }, []);
   useEffect(() => {
@@ -384,18 +223,10 @@ export default function Home() {
           annotations: { readOnlyHint: false, untrustedContentHint: false },
           execute: async (input: unknown) => {
             const payload = input as typeof form;
-            const response = await fetch("/api/dashboard", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                kind: "automation",
-                ...payload,
-                actionType: "Enviar e-mail pelo Gmail",
-              }),
+            const data = await brunaFlowApi.createAutomation({
+              ...payload,
+              actionType: "Enviar e-mail pelo Gmail",
             });
-            if (!response.ok)
-              throw new Error("Não foi possível criar a automação.");
-            const data = await response.json();
             await loadData();
             return { id: data.automation.id, status: "created" };
           },
@@ -411,56 +242,19 @@ export default function Home() {
     [metrics.timeSavedMinutes],
   );
   const searchResults = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    if (!query) return [];
-    return [
-      ...automations.map((item) => ({
-        key: `automation-${item.id}`,
-        label: item.name,
-        detail: `Automação · ${triggerLabel(item.triggerType)}`,
-        tab: "automations" as Tab,
-      })),
-      ...templates.map((item) => ({
-        key: `template-${item.id}`,
-        label: item.name,
-        detail: `Modelo · ${item.subject}`,
-        tab: "emails" as Tab,
-      })),
-      ...emails.map((item) => ({
-        key: `email-${item.id}`,
-        label: item.recipientName || item.recipientEmail,
-        detail: `E-mail enviado · ${item.subject}`,
-        tab: "emails" as Tab,
-      })),
-      ...runs.map((item) => ({
-        key: `run-${item.id}`,
-        label: item.contactName,
-        detail: `Execução · ${item.automationName}`,
-        tab: "runs" as Tab,
-      })),
-    ]
-      .filter((item) =>
-        `${item.label} ${item.detail}`.toLowerCase().includes(query),
-      )
-      .slice(0, 8);
+    return buildSearchResults(searchQuery, {
+      automations,
+      templates,
+      emails,
+      runs,
+    });
   }, [searchQuery, automations, templates, emails, runs]);
   async function createAutomation(event: React.FormEvent) {
     event.preventDefault();
     if (!form.name.trim() || !form.templateId) return;
     setLoading(true);
     try {
-      const response = await fetch("/api/dashboard", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind: "automation",
-          ...form,
-          templateId: Number(form.templateId),
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.error || "Não foi possível salvar.");
+      const data = await brunaFlowApi.createAutomation(form);
       setAutomations((current) => [data.automation, ...current]);
       setDialog(false);
       setForm({
@@ -516,19 +310,7 @@ export default function Home() {
   async function generateTemplate() {
     setLoading(true);
     try {
-      const response = await fetch("/api/email-templates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind: "generate",
-          name: templateForm.name || "Modelo de e-mail",
-          subjectHint: templateForm.subject,
-          instructions: templateForm.body,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.error || "A IA não conseguiu gerar o texto.");
+      const data = await brunaFlowApi.generateTemplate(templateForm);
       setTemplateForm((current) => ({
         ...current,
         subject: data.subject,
@@ -552,14 +334,7 @@ export default function Home() {
     event.preventDefault();
     setLoading(true);
     try {
-      const response = await fetch("/api/email-templates", {
-        method: editingTemplate ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...templateForm, id: editingTemplate }),
-      });
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.error || "Não foi possível salvar.");
+      await brunaFlowApi.saveTemplate(templateForm, editingTemplate);
       setTemplateBaseline(JSON.stringify(templateForm));
       setTemplateDialog(false);
       await loadData();
@@ -581,22 +356,11 @@ export default function Home() {
     }
     setTestSending(true);
     try {
-      const response = await fetch("/api/email-templates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind: "test",
-          id: editingTemplate,
-          name: templateForm.name,
-          subject: templateForm.subject,
-          body: templateForm.body,
-          contactName: templateExample.name,
-          email: templateExample.email,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.error || "Não foi possível enviar o teste.");
+      const data = await brunaFlowApi.sendTemplateTest(
+        templateForm,
+        editingTemplate,
+        templateExample,
+      );
       await loadData();
       notify(`Teste enviado por ${data.sender}. Confira a caixa de entrada.`);
     } catch (error) {
@@ -633,14 +397,7 @@ export default function Home() {
       return;
     setLoading(true);
     try {
-      const response = await fetch("/api/email-templates", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: template.id }),
-      });
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.error || "Não foi possível excluir.");
+      await brunaFlowApi.deleteTemplate(template.id);
       await loadData();
       notify("Modelo excluído; automações vinculadas foram pausadas.");
     } catch (error) {
@@ -659,18 +416,7 @@ export default function Home() {
     setLoading(true);
     setNotice("Executando o fluxo…");
     try {
-      const response = await fetch("/api/dashboard", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind: "run",
-          automationId: testAutomation.id,
-          automationName: testAutomation.name,
-          ...lead,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Falha");
+      const data = await brunaFlowApi.executeAutomation(testAutomation, lead);
       setTestAutomation(null);
       await Promise.all([loadData(), loadGmail()]);
       const source =
@@ -703,7 +449,7 @@ export default function Home() {
       notify("Conecte seu Gmail para usar sua conta como remetente.");
       return;
     }
-    const selected = automation || automations[0] || starterAutomations[0];
+    const selected = automation || automations[0] || STARTER_AUTOMATIONS[0];
     setTestAutomation(selected);
     setLead({
       contactName: "",
@@ -714,10 +460,7 @@ export default function Home() {
   async function disconnectGmail() {
     setSyncing(true);
     try {
-      const response = await fetch("/api/integrations/gmail/disconnect", {
-        method: "POST",
-      });
-      if (!response.ok) throw new Error();
+      await brunaFlowApi.disconnectGmail();
       setGmail({ connected: false });
       notify(
         "Gmail desconectado. Sua chave de webhook continua salva, mas os envios ficam pausados até uma nova conexão.",
@@ -732,10 +475,7 @@ export default function Home() {
   async function generateWebhook() {
     setLoading(true);
     try {
-      const response = await fetch("/api/webhooks/config", { method: "POST" });
-      const data = await response.json();
-      if (!response.ok)
-        throw new Error(data.error || "Não foi possível gerar a chave.");
+      const data = await brunaFlowApi.createWebhook();
       setWebhook(data);
       notify(
         "Chave criada. Copie agora: ela será mostrada somente nesta sessão.",
@@ -760,10 +500,7 @@ export default function Home() {
       return;
     setLoading(true);
     try {
-      const response = await fetch("/api/webhooks/config", {
-        method: "DELETE",
-      });
-      if (!response.ok) throw new Error();
+      await brunaFlowApi.revokeWebhook();
       setWebhook({ configured: false });
       notify("Chave de webhook revogada");
     } catch {
@@ -787,12 +524,7 @@ export default function Home() {
       return;
     setLoading(true);
     try {
-      const response = await fetch("/api/workspace", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scope: "history" }),
-      });
-      if (!response.ok) throw new Error();
+      await brunaFlowApi.deleteWorkspaceData("history");
       await loadData();
       notify("Históricos apagados");
     } catch {
@@ -810,12 +542,7 @@ export default function Home() {
       return;
     setLoading(true);
     try {
-      const response = await fetch("/api/workspace", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scope: "workspace" }),
-      });
-      if (!response.ok) throw new Error();
+      await brunaFlowApi.deleteWorkspaceData("workspace");
       window.location.reload();
     } catch {
       notify("Não foi possível excluir os dados");
@@ -829,159 +556,31 @@ export default function Home() {
 
   return (
     <main className="app-shell">
-      <aside className={`sidebar ${mobileNav ? "open" : ""}`}>
-        <div className="brand">
-          <span className="brand-mark">
-            <GitBranch size={20} />
-          </span>
-          <div>
-            <strong>BrunaFlow</strong>
-            <span>AI automation</span>
-          </div>
-        </div>
-        <nav>
-          <button
-            className={tab === "overview" ? "active" : ""}
-            onClick={() => go("overview")}
-          >
-            <LayoutDashboard size={18} />
-            Visão geral
-          </button>
-          <button
-            className={tab === "automations" ? "active" : ""}
-            onClick={() => go("automations")}
-          >
-            <Zap size={18} />
-            Automações <span className="nav-count">{automations.length}</span>
-          </button>
-          <button
-            className={tab === "runs" ? "active" : ""}
-            onClick={() => go("runs")}
-          >
-            <Activity size={18} />
-            Execuções
-          </button>
-          <button
-            className={tab === "emails" ? "active" : ""}
-            onClick={() => go("emails")}
-          >
-            <Mail size={18} />
-            E-mails <span className="nav-count">{emails.length}</span>
-          </button>
-        </nav>
-        <div className="nav-section">Workspace</div>
-        <nav>
-          <button
-            className={tab === "integrations" ? "active" : ""}
-            onClick={() => go("integrations")}
-          >
-            <Boxes size={18} />
-            Integrações
-          </button>
-          <button
-            className={tab === "webhooks" ? "active" : ""}
-            onClick={() => go("webhooks")}
-          >
-            <Webhook size={18} />
-            Webhooks
-          </button>
-          <button
-            className={tab === "settings" ? "active" : ""}
-            onClick={() => go("settings")}
-          >
-            <Settings size={18} />
-            Configurações
-          </button>
-        </nav>
-        <div className="sidebar-footer">
-          <div className="plan-pill">
-            <Sparkles size={15} />
-            <span>
-              <strong>Projeto de portfólio</strong>
-              <small>Dados do visitante isolados</small>
-            </span>
-          </div>
-          <button onClick={() => setAbout(true)} className="text-link">
-            Como o projeto funciona <ArrowRight size={14} />
-          </button>
-          <a href="/privacidade" className="privacy-link">
-            Privacidade e dados
-          </a>
-        </div>
-      </aside>
+      <Sidebar
+        activeTab={tab}
+        isOpen={mobileNav}
+        automationCount={automations.length}
+        emailCount={emails.length}
+        onNavigate={go}
+        onAbout={() => setAbout(true)}
+      />
       <section className="content">
-        <header className="topbar">
-          <button
-            className="icon-button menu"
-            onClick={() => setMobileNav(!mobileNav)}
-            aria-label="Abrir menu"
-          >
-            <Menu size={20} />
-          </button>
-          <div className="search-wrap">
-            <div className="search">
-              <Search size={17} />
-              <input
-                value={searchQuery}
-                onChange={(event) => {
-                  setSearchQuery(event.target.value);
-                  setSearchOpen(true);
-                }}
-                onFocus={() => setSearchOpen(true)}
-                onBlur={() =>
-                  window.setTimeout(() => setSearchOpen(false), 150)
-                }
-                placeholder="Buscar automações, modelos, envios…"
-                aria-label="Buscar no workspace"
-              />
-            </div>
-            {searchOpen && searchQuery.trim() && (
-              <div className="search-results">
-                {searchResults.length ? (
-                  searchResults.map((result) => (
-                    <button
-                      key={result.key}
-                      onMouseDown={() => {
-                        go(result.tab);
-                        setSearchQuery("");
-                        setSearchOpen(false);
-                      }}
-                    >
-                      <b>{result.label}</b>
-                      <small>{result.detail}</small>
-                    </button>
-                  ))
-                ) : (
-                  <span>Nenhum resultado encontrado</span>
-                )}
-              </div>
-            )}
-          </div>
-          <div className="top-actions">
-            <span
-              className={`system-status ${gmail.connected ? "" : "offline"}`}
-            >
-              <i />
-              {gmail.connected
-                ? `Gmail: ${gmail.email}`
-                : "Gmail não conectado"}
-            </span>
-            <button
-              className="avatar"
-              onClick={() => go("settings")}
-              title="Abrir configurações"
-              aria-label="Abrir configurações"
-            >
-              {gmail.email?.slice(0, 2).toUpperCase() || "BF"}
-            </button>
-          </div>
-        </header>
+        <Topbar
+          gmail={gmail}
+          query={searchQuery}
+          searchOpen={searchOpen}
+          results={searchResults}
+          onQueryChange={setSearchQuery}
+          onSearchOpenChange={setSearchOpen}
+          onToggleMenu={() => setMobileNav((current) => !current)}
+          onNavigate={go}
+        />
         <div className="page">
           <div className="page-heading">
             <div>
-              <span className="eyebrow">{pageMeta[tab].eyebrow}</span>
-              <h1>{pageMeta[tab].title}</h1>
-              <p>{pageMeta[tab].description}</p>
+              <span className="eyebrow">{PAGE_META[tab].eyebrow}</span>
+              <h1>{PAGE_META[tab].title}</h1>
+              <p>{PAGE_META[tab].description}</p>
             </div>
             {(tab === "overview" || tab === "automations") && (
               <button className="primary" onClick={() => setDialog(true)}>
@@ -1116,7 +715,7 @@ export default function Home() {
                       <Zap size={20} />
                     </span>
                     <span className={`state ${item.status}`}>
-                      {statusLabel[item.status]}
+                      {STATUS_LABEL[item.status]}
                     </span>
                   </div>
                   <h3>{item.name}</h3>
@@ -1642,7 +1241,7 @@ export default function Home() {
               </div>
               <div>
                 <span>Status</span>
-                <b>{statusLabel[selectedRun.status] || selectedRun.status}</b>
+                <b>{STATUS_LABEL[selectedRun.status] || selectedRun.status}</b>
               </div>
               <div>
                 <span>Duração</span>
@@ -2278,7 +1877,7 @@ function AutomationList({
               </small>
             </div>
             <span className={`state ${item.status}`}>
-              {statusLabel[item.status]}
+              {STATUS_LABEL[item.status]}
             </span>
             <button
               className="icon-button"
@@ -2367,7 +1966,7 @@ function RunTable({
               <td>{providerLabel(run.provider)}</td>
               <td>
                 <span className={`state ${run.status}`}>
-                  {statusLabel[run.status] || run.status}
+                  {STATUS_LABEL[run.status] || run.status}
                 </span>
               </td>
               <td>{(run.durationMs / 1000).toFixed(1)}s</td>
@@ -2396,53 +1995,4 @@ function EmptyState() {
       <small>Conecte o Gmail e teste um fluxo para gerar dados reais.</small>
     </div>
   );
-}
-function renderTemplatePreview(
-  value: string,
-  template: { name: string },
-  example: { name: string; email: string },
-) {
-  const variables = {
-    nome: example.name || "Maria",
-    email: example.email || "maria@exemplo.com",
-    mensagem: "Este é um envio de teste do editor de modelos.",
-    classificacao: "Novo contato",
-    prioridade: "Normal",
-    nome_automacao: template.name || "Minha automação",
-  };
-  return value.replace(
-    /\{\{\s*(nome|email|mensagem|classificacao|prioridade|nome_automacao)\s*\}\}/gi,
-    (_, key: string) =>
-      variables[key.toLowerCase() as keyof typeof variables] || "",
-  );
-}
-function triggerLabel(value: string) {
-  return (
-    (
-      {
-        "user.created": "Novo usuário cadastrado",
-        "form.submitted": "Novo formulário recebido",
-        "lead.created": "Novo lead recebido",
-        "appointment.requested": "Solicitação de agendamento",
-      } as Record<string, string>
-    )[value] || value
-  );
-}
-function providerLabel(value: string) {
-  return value === "groq"
-    ? "Groq"
-    : value === "gemini"
-      ? "Gemini"
-      : "Demonstração";
-}
-function relativeTime(value: string) {
-  const mins = Math.max(
-    0,
-    Math.round((Date.now() - new Date(value).getTime()) / 60000),
-  );
-  return mins < 1
-    ? "agora"
-    : mins < 60
-      ? `há ${mins} min`
-      : `há ${Math.floor(mins / 60)}h`;
 }

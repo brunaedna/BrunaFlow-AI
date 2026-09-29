@@ -60,6 +60,17 @@ npm run dev
 
 A aplicação será iniciada localmente pelo ambiente Vinext/Vite.
 
+## Testes
+
+```bash
+npm test
+npm run build
+npx playwright install chromium
+npm run test:e2e
+```
+
+Os testes de interface simulam a criação de um modelo de e-mail e de uma automação sem usar credenciais externas.
+
 ## Variáveis de ambiente
 
 O arquivo `.env.example` documenta as configurações disponíveis para:
