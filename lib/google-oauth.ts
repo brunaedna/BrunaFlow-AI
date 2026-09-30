@@ -58,9 +58,12 @@ export async function refreshAccessToken(refreshToken: string) {
 }
 
 export async function getGoogleIdentity(accessToken: string) {
-  const response = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  const response = await fetch(
+    "https://openidconnect.googleapis.com/v1/userinfo",
+    {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    },
+  );
   if (!response.ok)
     throw new Error("Não foi possível identificar a conta Google conectada.");
   const identity = (await response.json()) as {

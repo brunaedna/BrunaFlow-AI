@@ -49,7 +49,10 @@ export default function PrivacyPage() {
             sincronização. Para exibir o histórico solicitado, o BrunaFlow
             também guarda destinatário, nome, assunto, texto, remetente e data
             dos e-mails enviados, além dos modelos, automações e execuções
-            associados ao identificador aleatório deste navegador.
+            associados ao identificador aleatório deste navegador. Chaves de
+            idempotência são armazenadas somente como hashes, e cada execução
+            recebe um identificador técnico para correlacionar eventos,
+            resultados e falhas.
           </p>
         </section>
         <section>
@@ -60,11 +63,11 @@ export default function PrivacyPage() {
           <p>
             Os dados são usados exclusivamente para executar os fluxos
             solicitados pelo visitante e exibir o histórico gerado dentro do
-            próprio BrunaFlow. Eles não são vendidos nem
-            usados para publicidade. “Desconectar Gmail” revoga o acesso e
-            remove a credencial OAuth. “Limpar históricos” apaga execuções e
-            e-mails enviados. “Excluir workspace” remove também modelos,
-            automações e chave de webhook.
+            próprio BrunaFlow. Eles não são vendidos nem usados para
+            publicidade. “Desconectar Gmail” revoga o acesso e remove a
+            credencial OAuth. “Limpar históricos” apaga execuções, eventos de
+            webhook e e-mails enviados. “Excluir workspace” remove também
+            modelos, automações e chave de webhook.
           </p>
         </section>
         <section>

@@ -1235,7 +1235,10 @@ export default function Home() {
               </div>
               <div>
                 <span>Provedor</span>
-                <b>{providerLabel(selectedRun.provider)}</b>
+                <b>
+                  {providerLabel(selectedRun.provider)}
+                  {selectedRun.model ? ` · ${selectedRun.model}` : ""}
+                </b>
               </div>
               <div>
                 <span>Status</span>
@@ -1245,10 +1248,26 @@ export default function Home() {
                 <span>Duração</span>
                 <b>{(selectedRun.durationMs / 1000).toFixed(1)}s</b>
               </div>
+              <div>
+                <span>Evento</span>
+                <b>{selectedRun.eventType || "manual"}</b>
+              </div>
+              <div>
+                <span>ID da requisição</span>
+                <b>{selectedRun.requestId || "Não registrado"}</b>
+              </div>
             </div>
             <div className="run-message">
-              <span>Mensagem enviada</span>
-              <p>{selectedRun.emailDraft || "Nenhuma mensagem registrada."}</p>
+              <span>
+                {selectedRun.status === "failed"
+                  ? "Falha registrada"
+                  : "Mensagem enviada"}
+              </span>
+              <p>
+                {selectedRun.status === "failed"
+                  ? selectedRun.errorMessage || "Falha sem detalhes adicionais."
+                  : selectedRun.emailDraft || "Nenhuma mensagem registrada."}
+              </p>
             </div>
           </div>
         </div>
@@ -1577,6 +1596,10 @@ function WebhooksView({
             <small>
               Nunca coloque essa chave em JavaScript público ou dentro do
               navegador do seu cliente.
+            </small>
+            <small>
+              Envie também um Idempotency-Key único por evento para impedir
+              processamentos e e-mails duplicados em novas tentativas.
             </small>
           </span>
         </div>
@@ -1907,7 +1930,13 @@ function RunList({ runs, onAll }: { runs: Run[]; onAll: () => void }) {
           {runs.map((run) => (
             <div className="run-row" key={run.id}>
               <span className={`run-dot ${run.status}`}>
-                <Check size={13} />
+                {run.status === "failed" ? (
+                  <X size={13} />
+                ) : run.status === "processing" ? (
+                  <Clock3 size={13} />
+                ) : (
+                  <Check size={13} />
+                )}
               </span>
               <div>
                 <b>{run.contactName}</b>

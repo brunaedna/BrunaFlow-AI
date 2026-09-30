@@ -22,7 +22,13 @@ export type Run = {
   durationMs: number;
   timeSavedMinutes: number;
   provider: string;
+  model?: string;
   emailDraft: string;
+  eventType?: string;
+  requestId?: string;
+  currentStep?: string;
+  errorMessage?: string;
+  completedAt?: string | null;
   createdAt: string;
 };
 

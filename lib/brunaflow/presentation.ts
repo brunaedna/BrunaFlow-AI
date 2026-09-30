@@ -37,11 +37,10 @@ export function triggerLabel(value: string) {
 }
 
 export function providerLabel(value: string) {
-  return value === "groq"
-    ? "Groq"
-    : value === "gemini"
-      ? "Gemini"
-      : "Demonstração";
+  if (value === "groq") return "Groq";
+  if (value === "gemini") return "Gemini";
+  if (value === "pending") return "Aguardando IA";
+  return "Demonstração";
 }
 
 export function relativeTime(value: string, now = Date.now()) {

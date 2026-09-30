@@ -4,9 +4,7 @@ import {
   automations,
   deliveryAttempts,
   emailTemplates,
-  executions,
   gmailConnections,
-  sentEmails,
 } from "../db/schema";
 import {
   isValidEmail,
@@ -17,6 +15,7 @@ import {
 import { classifyLead } from "./lead-ai";
 import { sendTestEmail } from "./gmail";
 import { decryptToken } from "./google-oauth";
+import { ExecutionTracker } from "./workflows/execution-tracker";
 
 type Input = {
   automationId?: number;
@@ -27,6 +26,7 @@ type Input = {
   message: string;
   ipAddress?: string;
   ownerHash?: string;
+  requestId?: string;
 };
 
 export async function executeLeadWorkflow(input: Input) {
@@ -151,101 +151,106 @@ export async function executeLeadWorkflow(input: Input) {
 
   const automationId = selected.id;
   const automationName = selected.name;
-  let identity: undefined | { refreshToken: string; email: string };
-  if (input.ownerHash) {
-    const [connection] = await db
-      .select()
-      .from(gmailConnections)
-      .where(eq(gmailConnections.sessionHash, input.ownerHash))
-      .limit(1);
-    if (!connection)
-      throw new Error("Conecte seu Gmail antes de executar o fluxo.");
-    identity = {
-      refreshToken: await decryptToken(connection.encryptedRefreshToken),
-      email: connection.email,
-    };
-  }
-
   const started = Date.now();
-  const result = await classifyLead({
-    name: input.contactName,
-    message: input.message,
-    automationName,
-  });
-  let template: typeof emailTemplates.$inferSelect | undefined;
-  if (selected.templateId && input.ownerHash) {
-    [template] = await db
-      .select()
-      .from(emailTemplates)
-      .where(
-        and(
-          eq(emailTemplates.id, selected.templateId),
-          eq(emailTemplates.ownerHash, input.ownerHash),
-        ),
-      )
-      .limit(1);
-  }
-
-  const variables: TemplateVariables = {
-    nome: input.contactName,
-    email,
-    mensagem: input.message,
-    classificacao: result.classification,
-    prioridade: result.priority,
-    nome_automacao: automationName,
-  };
-  const subject = renderTemplate(
-    template?.subject || `BrunaFlow AI: ${result.classification}`,
-    variables,
-  );
-  const body = renderTemplate(
-    template?.body ||
-      result.emailDraft ||
-      "Olá, {{nome}}! Obrigada pelo contato.",
-    variables,
-  );
-  const emailResult = await sendTestEmail(email, subject, body, identity);
-  if (!emailResult.sent)
-    throw new Error("Conecte um Gmail para enviar a mensagem.");
-
   const ownerHash = input.ownerHash || "webhook";
-  const [run] = await db
-    .insert(executions)
-    .values({
-      ownerHash,
-      automationId,
+  const requestId = input.requestId || crypto.randomUUID();
+  const tracker = new ExecutionTracker(db);
+  const pendingRun = await tracker.start({
+    ownerHash,
+    automationId,
+    automationName,
+    contactName: input.contactName,
+    eventType: input.eventType || "manual",
+    requestId,
+  });
+
+  try {
+    let identity: undefined | { refreshToken: string; email: string };
+    if (input.ownerHash) {
+      const [connection] = await db
+        .select()
+        .from(gmailConnections)
+        .where(eq(gmailConnections.sessionHash, input.ownerHash))
+        .limit(1);
+      if (!connection)
+        throw new Error("Conecte seu Gmail antes de executar o fluxo.");
+      identity = {
+        refreshToken: await decryptToken(connection.encryptedRefreshToken),
+        email: connection.email,
+      };
+    }
+
+    const result = await classifyLead({
+      name: input.contactName,
+      message: input.message,
       automationName,
-      contactName: input.contactName.slice(0, 100),
+    });
+    let template: typeof emailTemplates.$inferSelect | undefined;
+    if (selected.templateId && input.ownerHash) {
+      [template] = await db
+        .select()
+        .from(emailTemplates)
+        .where(
+          and(
+            eq(emailTemplates.id, selected.templateId),
+            eq(emailTemplates.ownerHash, input.ownerHash),
+          ),
+        )
+        .limit(1);
+    }
+
+    const variables: TemplateVariables = {
+      nome: input.contactName,
+      email,
+      mensagem: input.message,
+      classificacao: result.classification,
+      prioridade: result.priority,
+      nome_automacao: automationName,
+    };
+    const subject = renderTemplate(
+      template?.subject || `BrunaFlow AI: ${result.classification}`,
+      variables,
+    );
+    const body = renderTemplate(
+      template?.body ||
+        result.emailDraft ||
+        "Olá, {{nome}}! Obrigada pelo contato.",
+      variables,
+    );
+    await tracker.classified(pendingRun.id, {
       classification: result.classification,
       priority: result.priority,
-      status: "success",
-      attempts: 1,
-      durationMs: Date.now() - started,
-      timeSavedMinutes: 10,
       provider: result.provider,
+      model: result.model,
       emailDraft: body,
-    })
-    .returning();
+    });
 
-  await db.batch([
-    db.insert(deliveryAttempts).values({ emailHash, ipHash }),
-    db.insert(sentEmails).values({
+    const emailResult = await sendTestEmail(email, subject, body, identity);
+    if (!emailResult.sent)
+      throw new Error("Conecte um Gmail para enviar a mensagem.");
+
+    const run = await tracker.complete({
+      executionId: pendingRun.id,
+      startedAt: started,
+      emailHash,
+      ipHash,
       ownerHash,
-      executionId: run.id,
       automationId,
       templateId: template?.id,
       recipientEmail: email,
-      recipientName: input.contactName.slice(0, 100),
+      recipientName: input.contactName,
       subject,
       body,
-      status: "sent",
       senderEmail: emailResult.sender || identity?.email || "",
-    }),
-  ]);
+    });
 
-  return {
-    run,
-    analysis: { summary: result.summary, model: result.model },
-    email: { ...emailResult, subject },
-  };
+    return {
+      run,
+      analysis: { summary: result.summary, model: result.model },
+      email: { ...emailResult, subject },
+    };
+  } catch (error) {
+    await tracker.fail(pendingRun.id, started, error);
+    throw error;
+  }
 }

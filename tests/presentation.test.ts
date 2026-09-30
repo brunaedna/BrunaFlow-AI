@@ -13,6 +13,7 @@ test("apresenta os nomes usados pela interface sem expor códigos internos", () 
   assert.equal(triggerLabel("custom.event"), "custom.event");
   assert.equal(providerLabel("groq"), "Groq");
   assert.equal(providerLabel("gemini"), "Gemini");
+  assert.equal(providerLabel("pending"), "Aguardando IA");
   assert.equal(providerLabel("demo"), "Demonstração");
 });
 

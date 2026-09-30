@@ -5,6 +5,7 @@ import {
   real,
   sqliteTable,
   text,
+  uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 export const emailTemplates = sqliteTable(
   "email_templates",
@@ -68,13 +69,55 @@ export const executions = sqliteTable(
     durationMs: integer("duration_ms").notNull(),
     timeSavedMinutes: integer("time_saved_minutes").notNull().default(10),
     provider: text("provider").notNull().default("simulation"),
+    model: text("model").notNull().default(""),
     emailDraft: text("email_draft").notNull().default(""),
+    eventType: text("event_type").notNull().default("manual"),
+    requestId: text("request_id").notNull().default("legacy"),
+    currentStep: text("current_step").notNull().default("completed"),
+    errorMessage: text("error_message").notNull().default(""),
+    completedAt: text("completed_at"),
     createdAt: text("created_at")
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => ({
     ownerCreatedIndex: index("executions_owner_created_idx").on(
+      table.ownerHash,
+      table.createdAt,
+    ),
+    requestIndex: index("executions_request_idx").on(table.requestId),
+  }),
+);
+export const webhookEvents = sqliteTable(
+  "webhook_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    ownerHash: text("owner_hash").notNull(),
+    keyHash: text("key_hash").notNull(),
+    requestId: text("request_id").notNull(),
+    eventType: text("event_type").notNull().default("unknown"),
+    status: text("status").notNull().default("processing"),
+    executionId: integer("execution_id").references(() => executions.id, {
+      onDelete: "set null",
+    }),
+    responseJson: text("response_json").notNull().default(""),
+    errorMessage: text("error_message").notNull().default(""),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    ownerKeyUnique: uniqueIndex("webhook_events_owner_key_unique").on(
+      table.ownerHash,
+      table.keyHash,
+    ),
+    requestUnique: uniqueIndex("webhook_events_request_unique").on(
+      table.requestId,
+    ),
+    ownerCreatedIndex: index("webhook_events_owner_created_idx").on(
       table.ownerHash,
       table.createdAt,
     ),

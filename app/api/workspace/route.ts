@@ -6,6 +6,7 @@ import {
   executions,
   gmailConnections,
   sentEmails,
+  webhookEvents,
   webhookKeys,
 } from "../../../db/schema";
 import { decryptToken } from "../../../lib/google-oauth";
@@ -26,6 +27,7 @@ export async function DELETE(request: Request) {
   if (payload.scope === "history") {
     await db.batch([
       db.delete(sentEmails).where(eq(sentEmails.ownerHash, sessionHash)),
+      db.delete(webhookEvents).where(eq(webhookEvents.ownerHash, sessionHash)),
       db.delete(executions).where(eq(executions.ownerHash, sessionHash)),
     ]);
     return Response.json({ cleared: true });
@@ -51,6 +53,7 @@ export async function DELETE(request: Request) {
   }
   await db.batch([
     db.delete(sentEmails).where(eq(sentEmails.ownerHash, sessionHash)),
+    db.delete(webhookEvents).where(eq(webhookEvents.ownerHash, sessionHash)),
     db.delete(executions).where(eq(executions.ownerHash, sessionHash)),
     db.delete(automations).where(eq(automations.ownerHash, sessionHash)),
     db.delete(emailTemplates).where(eq(emailTemplates.ownerHash, sessionHash)),

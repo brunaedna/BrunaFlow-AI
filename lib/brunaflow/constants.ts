@@ -41,6 +41,8 @@ export const STARTER_AUTOMATIONS: Automation[] = [
 
 export const STATUS_LABEL: Record<string, string> = {
   success: "Concluído",
+  processing: "Processando",
+  failed: "Falhou",
   retry: "Nova tentativa",
   active: "Ativa",
   paused: "Pausada",

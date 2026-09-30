@@ -8,13 +8,15 @@ O **BrunaFlow AI** é uma plataforma de automação de processos que conecta for
 
 - Criação e gerenciamento de automações por gatilho.
 - Webhooks com chave exclusiva por workspace.
+- Proteção contra eventos duplicados com `Idempotency-Key`.
 - Classificação de leads e definição de prioridade com IA.
 - Integração com Groq e Gemini, com fallback entre provedores.
 - Conexão individual com Gmail usando OAuth 2.0.
 - Criação, edição e geração de modelos de e-mail com IA.
 - Variáveis personalizáveis, como `{{nome}}`, `{{email}}` e `{{mensagem}}`.
 - Envio de testes e registro dos e-mails enviados.
-- Histórico de execuções, taxa de sucesso e tempo economizado.
+- Histórico de execuções concluídas, em processamento ou com falha.
+- Identificador de correlação, etapa, provedor, modelo, duração e erro por execução.
 - Controles de privacidade, desconexão de integrações e exclusão dos dados do workspace.
 
 ## Como funciona
@@ -32,6 +34,23 @@ Envio pela conta Gmail conectada
         ↓
 Histórico e métricas no dashboard
 ```
+
+## Webhooks confiáveis
+
+Cada evento pode incluir um identificador único no cabeçalho:
+
+```http
+Idempotency-Key: cadastro-usuario-123
+```
+
+Se o aplicativo de origem repetir a mesma requisição por timeout ou falha de
+rede, o BrunaFlow devolve o estado ou resultado da primeira execução sem enviar
+o e-mail novamente. A resposta também contém `requestId`, devolvido no cabeçalho
+`X-BrunaFlow-Request-Id`, para correlacionar o evento aos registros do painel.
+
+As execuções são criadas com estado `processing` antes das chamadas externas e
+finalizadas como `success` ou `failed`. Dessa forma, falhas de IA, Gmail ou banco
+não desaparecem do histórico operacional.
 
 ## Tecnologias utilizadas
 
@@ -70,6 +89,12 @@ npm run test:e2e
 ```
 
 Os testes de interface simulam a criação de um modelo de e-mail e de uma automação sem usar credenciais externas.
+
+Os testes unitários também validam reserva, repetição e conclusão idempotente de
+eventos sem armazenar as chaves recebidas em texto puro.
+
+Após atualizar uma implantação existente, aplique a migração mais recente do
+diretório `drizzle/` ao banco D1 antes de publicar o Worker.
 
 ## Variáveis de ambiente
 
